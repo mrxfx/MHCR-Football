@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "MHCR Football™"
+version = "1.0.0"
+id = "artifacts/mhcr-football"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25960
+
+[services.development]
+run = "pnpm --filter @workspace/mhcr-football run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/mhcr-football", "run", "build" ]
+publicDir = "artifacts/mhcr-football/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25960"
+BASE_PATH = "/"
