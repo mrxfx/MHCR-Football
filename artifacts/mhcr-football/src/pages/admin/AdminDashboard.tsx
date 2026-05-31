@@ -1,53 +1,168 @@
 import { AdminLayout } from "@/components/layout/AdminLayout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, UserSquare, Calendar, Newspaper } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Link } from "wouter";
+import { getDocs } from "firebase/firestore";
+import { collections } from "@/lib/firestore";
+import { Users, UserSquare, Calendar, Newspaper, Trophy, ArrowRight, Activity } from "lucide-react";
+
+interface Stats {
+  teams: number;
+  players: number;
+  matches: number;
+  news: number;
+  standings: number;
+}
+
+const statCards = (stats: Stats) => [
+  {
+    label: "Total Teams",
+    value: stats.teams,
+    icon: Users,
+    color: "bg-blue-500",
+    light: "bg-blue-50 dark:bg-blue-900/20",
+    text: "text-blue-600 dark:text-blue-400",
+    href: "/admin/teams",
+  },
+  {
+    label: "Total Players",
+    value: stats.players,
+    icon: UserSquare,
+    color: "bg-purple-500",
+    light: "bg-purple-50 dark:bg-purple-900/20",
+    text: "text-purple-600 dark:text-purple-400",
+    href: "/admin/players",
+  },
+  {
+    label: "Total Matches",
+    value: stats.matches,
+    icon: Calendar,
+    color: "bg-orange-500",
+    light: "bg-orange-50 dark:bg-orange-900/20",
+    text: "text-orange-600 dark:text-orange-400",
+    href: "/admin/matches",
+  },
+  {
+    label: "News Articles",
+    value: stats.news,
+    icon: Newspaper,
+    color: "bg-pink-500",
+    light: "bg-pink-50 dark:bg-pink-900/20",
+    text: "text-pink-600 dark:text-pink-400",
+    href: "/admin/news",
+  },
+  {
+    label: "Standings",
+    value: stats.standings,
+    icon: Trophy,
+    color: "bg-yellow-500",
+    light: "bg-yellow-50 dark:bg-yellow-900/20",
+    text: "text-yellow-600 dark:text-yellow-400",
+    href: "/admin/standings",
+  },
+];
+
+const quickLinks = [
+  { label: "Add Team", href: "/admin/teams", icon: Users, desc: "Register a new team" },
+  { label: "Add Player", href: "/admin/players", icon: UserSquare, desc: "Register a new player" },
+  { label: "Create Match", href: "/admin/matches", icon: Calendar, desc: "Schedule a new match" },
+  { label: "Publish News", href: "/admin/news", icon: Newspaper, desc: "Write a news article" },
+  { label: "Update Standings", href: "/admin/standings", icon: Trophy, desc: "Edit league table" },
+  { label: "Settings", href: "/admin/settings", icon: Activity, desc: "App configuration" },
+];
 
 export default function AdminDashboard() {
+  const [stats, setStats] = useState<Stats>({ teams: 0, players: 0, matches: 0, news: 0, standings: 0 });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const [teamsSnap, playersSnap, matchesSnap, newsSnap, standingsSnap] = await Promise.all([
+          getDocs(collections.teams),
+          getDocs(collections.players),
+          getDocs(collections.matches),
+          getDocs(collections.news),
+          getDocs(collections.standings),
+        ]);
+        setStats({
+          teams: teamsSnap.size,
+          players: playersSnap.size,
+          matches: matchesSnap.size,
+          news: newsSnap.size,
+          standings: standingsSnap.size,
+        });
+      } catch (err) {
+        console.warn("Stats fetch error:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchStats();
+  }, []);
+
+  const cards = statCards(stats);
+
   return (
     <AdminLayout>
-      <h1 className="text-3xl font-bold mb-8">Dashboard</h1>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Total Teams</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">12</div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Total Players</CardTitle>
-            <UserSquare className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">240</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Total Matches</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">45</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">News Articles</CardTitle>
-            <Newspaper className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">18</div>
-          </CardContent>
-        </Card>
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
+        <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">Overview of your football platform</p>
       </div>
+
+      {/* Stats Grid */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+        {cards.map((card) => {
+          const Icon = card.icon;
+          return (
+            <Link key={card.href} href={card.href}>
+              <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-md transition-all cursor-pointer group">
+                <div className={`w-10 h-10 ${card.light} rounded-xl flex items-center justify-center mb-3`}>
+                  <Icon size={20} className={card.text} />
+                </div>
+                <div className="text-2xl font-bold text-gray-900 dark:text-white mb-0.5">
+                  {loading ? <div className="w-8 h-7 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" /> : card.value}
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{card.label}</p>
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+
+      {/* Quick Actions */}
+      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+          <h2 className="font-semibold text-gray-900 dark:text-white">Quick Actions</h2>
+          <span className="text-xs text-gray-400">Manage your content</span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+          {quickLinks.map((item, i) => {
+            const Icon = item.icon;
+            return (
+              <Link key={item.href} href={item.href}>
+                <div className={`flex items-center gap-4 px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer group ${
+                  i < quickLinks.length - (quickLinks.length % 3 || 3) ? "border-b border-gray-100 dark:border-gray-700" : ""
+                } ${i % 3 !== 2 ? "sm:border-r border-gray-100 dark:border-gray-700" : ""}`}>
+                  <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center flex-shrink-0">
+                    <Icon size={18} className="text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{item.label}</p>
+                    <p className="text-xs text-gray-400 truncate">{item.desc}</p>
+                  </div>
+                  <ArrowRight size={14} className="text-gray-300 group-hover:text-blue-500 transition-colors flex-shrink-0" />
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Footer note */}
+      <p className="text-center text-xs text-gray-400 mt-8">
+        MHCR Football™ Admin Panel · All changes reflect live on the public site
+      </p>
     </AdminLayout>
   );
 }
