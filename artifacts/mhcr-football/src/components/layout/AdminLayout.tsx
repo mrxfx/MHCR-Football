@@ -3,18 +3,19 @@ import { useState } from "react";
 import {
   LayoutDashboard, Users, UserSquare, Calendar,
   Trophy, Newspaper, Settings, LogOut, Menu, X,
-  ChevronRight, Shield
+  ChevronRight, Shield, Flame
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 const navItems = [
-  { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard, color: "text-blue-400" },
-  { href: "/admin/teams", label: "Teams", icon: Users, color: "text-green-400" },
-  { href: "/admin/players", label: "Players", icon: UserSquare, color: "text-purple-400" },
-  { href: "/admin/matches", label: "Matches", icon: Calendar, color: "text-orange-400" },
-  { href: "/admin/standings", label: "Standings", icon: Trophy, color: "text-yellow-400" },
-  { href: "/admin/news", label: "News", icon: Newspaper, color: "text-pink-400" },
-  { href: "/admin/settings", label: "Settings", icon: Settings, color: "text-gray-400" },
+  { href: "/admin/dashboard",    label: "Dashboard",     icon: LayoutDashboard, color: "text-blue-400",   live: false },
+  { href: "/admin/teams",        label: "Teams",         icon: Users,           color: "text-green-400",  live: false },
+  { href: "/admin/players",      label: "Players",       icon: UserSquare,      color: "text-purple-400", live: false },
+  { href: "/admin/matches",      label: "Matches",       icon: Calendar,        color: "text-orange-400", live: false },
+  { href: "/admin/goal-scorers", label: "Goal Scorers",  icon: Flame,           color: "text-red-400",    live: true  },
+  { href: "/admin/standings",    label: "Standings",     icon: Trophy,          color: "text-yellow-400", live: false },
+  { href: "/admin/news",         label: "News",          icon: Newspaper,       color: "text-pink-400",   live: false },
+  { href: "/admin/settings",     label: "Settings",      icon: Settings,        color: "text-gray-400",   live: false },
 ];
 
 function SidebarContent({ location, signOut, onClose }: { location: string; signOut: () => void; onClose?: () => void }) {
@@ -64,6 +65,9 @@ function SidebarContent({ location, signOut, onClose }: { location: string; sign
                   <span className={`text-sm font-medium ${isActive ? "text-white" : "text-white/70 group-hover:text-white"}`}>
                     {item.label}
                   </span>
+                  {item.live && !isActive && (
+                    <span className="ml-1 w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
+                  )}
                 </div>
                 {isActive && <ChevronRight size={14} className="text-white/60" />}
               </div>

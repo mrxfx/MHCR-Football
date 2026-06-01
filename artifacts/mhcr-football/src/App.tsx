@@ -23,6 +23,7 @@ import AdminMatches from "@/pages/admin/AdminMatches";
 import AdminStandings from "@/pages/admin/AdminStandings";
 import AdminNews from "@/pages/admin/AdminNews";
 import AdminSettings from "@/pages/admin/AdminSettings";
+import AdminGoalScorers from "@/pages/admin/AdminGoalScorers";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
@@ -87,6 +88,13 @@ function Router() {
         {() => (
           <ProtectedRoute>
             <AdminSettings />
+          </ProtectedRoute>
+        )}
+      </Route>
+      <Route path="/admin/goal-scorers">
+        {() => (
+          <ProtectedRoute>
+            <AdminGoalScorers />
           </ProtectedRoute>
         )}
       </Route>

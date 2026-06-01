@@ -58,6 +58,7 @@ export interface Settings {
 
 export interface GoalScorer {
   id?: string;
+  matchId?: string;
   teamId: string;
   playerName: string;
   goals: number;
