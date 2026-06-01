@@ -1,9 +1,33 @@
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useEffect, useState } from "react";
-import { collections, Match, Team, News as NewsType, Standing } from "@/lib/firestore";
+import { collections, Match, Team, News as NewsType, Standing, GoalScorer } from "@/lib/firestore";
 import { getDocs, query, orderBy, limit, onSnapshot } from "firebase/firestore";
 import { Link } from "wouter";
 import { ArrowRight, Trophy, Newspaper, Tv2 } from "lucide-react";
+
+/** "Guwahati United FC" → "GUFC"
+ *  All-caps words (like "FC", "SC", "AFC") are kept as-is; others contribute their first letter. */
+function shortName(name: string): string {
+  return name
+    .split(/\s+/)
+    .map(w => (w.length >= 2 && w === w.toUpperCase()) ? w : (w[0]?.toUpperCase() ?? ""))
+    .join("");
+}
+
+/** Render ⚽ emojis for goal count (max 5 shown inline, then count badge) */
+function GoalBalls({ count }: { count: number }) {
+  const balls = Math.min(count, 5);
+  return (
+    <span className="inline-flex items-center gap-0.5">
+      {"⚽".repeat(balls)}
+      {count > 1 && (
+        <span className="ml-1 text-[10px] font-bold bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 px-1.5 py-0.5 rounded-full">
+          {count}
+        </span>
+      )}
+    </span>
+  );
+}
 
 export default function Home() {
   const [featuredMatch, setFeaturedMatch] = useState<Match | null>(null);
@@ -11,6 +35,7 @@ export default function Home() {
   const [topTeams, setTopTeams] = useState<Standing[]>([]);
   const [news, setNews] = useState<NewsType[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
+  const [goalScorers, setGoalScorers] = useState<GoalScorer[]>([]);
   const [loadingScores, setLoadingScores] = useState(true);
   const [loadingTeams, setLoadingTeams] = useState(true);
   const [loadingNews, setLoadingNews] = useState(true);
@@ -24,13 +49,11 @@ export default function Home() {
   // Load teams once
   useEffect(() => {
     getDocs(collections.teams)
-      .then(snap => {
-        setTeams(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Team)));
-      })
+      .then(snap => setTeams(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Team))))
       .catch(err => console.warn("Teams fetch error:", err));
   }, []);
 
-  // Real-time scoreboard via onSnapshot
+  // Real-time scoreboard + featured match
   useEffect(() => {
     setLoadingScores(true);
     const q = query(collections.matches, orderBy("date", "desc"), limit(5));
@@ -38,17 +61,25 @@ export default function Home() {
       q,
       (snap) => {
         const all = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Match));
-        const featured = all.find(m => (m as any).live === true || m.status === "live") ||
-                         all.find(m => m.status === "upcoming") ||
-                         all[0] || null;
+        const featured =
+          all.find(m => (m as any).live === true || m.status === "live") ||
+          all.find(m => m.status === "upcoming") ||
+          all[0] || null;
         setFeaturedMatch(featured);
         setScoreboard(all);
         setLoadingScores(false);
       },
-      (err) => {
-        console.warn("Scoreboard snapshot error:", err);
-        setLoadingScores(false);
-      }
+      (err) => { console.warn("Scoreboard snapshot error:", err); setLoadingScores(false); }
+    );
+    return () => unsub();
+  }, []);
+
+  // Real-time goal scorers
+  useEffect(() => {
+    const unsub = onSnapshot(
+      collections.goalScorers,
+      (snap) => setGoalScorers(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as GoalScorer))),
+      (err) => console.warn("GoalScorers snapshot error:", err)
     );
     return () => unsub();
   }, []);
@@ -83,11 +114,20 @@ export default function Home() {
     return <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">Finished</span>;
   };
 
+  // Scorers for the featured match
+  const homeScorers = featuredMatch
+    ? goalScorers.filter(s => s.teamId === featuredMatch.homeTeam).sort((a, b) => b.goals - a.goals)
+    : [];
+  const awayScorers = featuredMatch
+    ? goalScorers.filter(s => s.teamId === featuredMatch.awayTeam).sort((a, b) => b.goals - a.goals)
+    : [];
+  const hasAnyScorers = homeScorers.length > 0 || awayScorers.length > 0;
+
   return (
     <MainLayout>
       <div className="space-y-6">
 
-        {/* Hero Banner */}
+        {/* ── Hero Banner ── */}
         <div className="rounded-2xl bg-gradient-to-br from-blue-900 via-blue-700 to-blue-500 text-white px-8 py-10 shadow-xl relative overflow-hidden">
           <div className="relative z-10">
             <h1 className="text-3xl md:text-5xl font-black mb-2 tracking-tight">MHCR Football™</h1>
@@ -98,7 +138,7 @@ export default function Home() {
           <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-white/5 rounded-full" />
         </div>
 
-        {/* Featured Match */}
+        {/* ── Featured Match ── */}
         {featuredMatch && (
           <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
             <div className="flex items-center justify-between px-5 py-3 border-b border-border">
@@ -136,10 +176,95 @@ export default function Home() {
           </div>
         )}
 
+        {/* ── Goal Scorers ── */}
+        {featuredMatch && (
+          <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
+            {/* Header */}
+            <div className="flex items-center gap-2 px-5 py-3 border-b border-border">
+              <span className="text-base">⚽</span>
+              <span className="text-sm font-semibold">Goal Scorers</span>
+              {(isLive(featuredMatch)) && (
+                <span className="ml-auto text-xs font-bold px-2 py-0.5 rounded-full bg-red-500 text-white animate-pulse">LIVE</span>
+              )}
+            </div>
+
+            {/* Team header row */}
+            <div className="grid grid-cols-2 border-b border-border">
+              <div className="flex items-center gap-2 px-5 py-2.5 border-r border-border">
+                <img src={getTeamLogo(featuredMatch.homeTeam)} alt="" className="w-6 h-6 rounded-full object-cover" />
+                <span className="font-black text-xs tracking-widest text-primary">
+                  {shortName(getTeamName(featuredMatch.homeTeam))}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 px-5 py-2.5">
+                <img src={getTeamLogo(featuredMatch.awayTeam)} alt="" className="w-6 h-6 rounded-full object-cover" />
+                <span className="font-black text-xs tracking-widest text-primary">
+                  {shortName(getTeamName(featuredMatch.awayTeam))}
+                </span>
+              </div>
+            </div>
+
+            {/* Scorers body */}
+            {!hasAnyScorers ? (
+              <div className="py-8 text-center text-sm text-muted-foreground">
+                No goals scored yet
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 divide-x divide-border min-h-[80px]">
+                {/* Home scorers */}
+                <div className="px-4 py-3 space-y-2">
+                  {homeScorers.length === 0 ? (
+                    <p className="text-xs text-muted-foreground italic">—</p>
+                  ) : (
+                    homeScorers.map((s) => (
+                      <div key={s.id} className="flex items-start gap-1.5 group">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold leading-tight truncate text-foreground group-hover:text-primary transition-colors">
+                            {s.playerName}
+                          </p>
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <GoalBalls count={s.goals} />
+                            {s.minute && (
+                              <span className="text-[10px] text-muted-foreground">{s.minute}</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* Away scorers */}
+                <div className="px-4 py-3 space-y-2">
+                  {awayScorers.length === 0 ? (
+                    <p className="text-xs text-muted-foreground italic">—</p>
+                  ) : (
+                    awayScorers.map((s) => (
+                      <div key={s.id} className="flex items-start gap-1.5 group">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold leading-tight truncate text-foreground group-hover:text-primary transition-colors">
+                            {s.playerName}
+                          </p>
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <GoalBalls count={s.goals} />
+                            {s.minute && (
+                              <span className="text-[10px] text-muted-foreground">{s.minute}</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
 
-            {/* 1. Scoreboard */}
+            {/* ── Scoreboard ── */}
             <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
               <div className="flex items-center justify-between px-5 py-3 border-b border-border">
                 <div className="flex items-center gap-2 text-sm font-semibold">
@@ -196,7 +321,7 @@ export default function Home() {
               </div>
             </div>
 
-            {/* 3. Latest News */}
+            {/* ── Latest News ── */}
             <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
               <div className="flex items-center justify-between px-5 py-3 border-b border-border">
                 <div className="flex items-center gap-2 text-sm font-semibold">
@@ -250,10 +375,10 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Right Column */}
+          {/* ── Right Column ── */}
           <div className="space-y-6">
 
-            {/* 2. Top Teams */}
+            {/* Top Teams */}
             <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
               <div className="flex items-center justify-between px-5 py-3 border-b border-border">
                 <div className="flex items-center gap-2 text-sm font-semibold">
@@ -295,7 +420,7 @@ export default function Home() {
               </div>
             </div>
 
-            {/* 4. AI Assistant */}
+            {/* AI Assistant */}
             <div className="bg-gradient-to-br from-blue-900 to-indigo-900 rounded-2xl p-5 text-white shadow-xl">
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-2xl">🤖</span>

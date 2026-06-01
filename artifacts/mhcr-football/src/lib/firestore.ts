@@ -56,6 +56,14 @@ export interface Settings {
   themeColor: string;
 }
 
+export interface GoalScorer {
+  id?: string;
+  teamId: string;
+  playerName: string;
+  goals: number;
+  minute?: string;
+}
+
 // Helpers
 export const collections = {
   teams: collection(db, "teams"),
@@ -65,4 +73,5 @@ export const collections = {
   news: collection(db, "news"),
   settings: collection(db, "settings"),
   admins: collection(db, "admins"),
+  goalScorers: collection(db, "goalScorers"),
 };
