@@ -54,6 +54,7 @@ export default function Home() {
   const [news, setNews] = useState<NewsType[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [featuredScorers, setFeaturedScorers] = useState<GoalScorer[]>([]);
+  const [showGoalScorers, setShowGoalScorers] = useState(true);
   const [loadingScores, setLoadingScores] = useState(true);
   const [loadingTeams, setLoadingTeams] = useState(true);
   const [loadingNews, setLoadingNews] = useState(true);
@@ -64,6 +65,21 @@ export default function Home() {
     return team?.logo || `https://ui-avatars.com/api/?name=${encodeURIComponent(getTeamName(id))}&background=2563eb&color=fff&bold=true`;
   };
   const isLive = (m: Match) => (m as any).live === true || m.status === "live";
+
+  // Real-time settings (controls show/hide of Goal Scorers section)
+  useEffect(() => {
+    const unsub = onSnapshot(
+      collections.settings,
+      snap => {
+        if (!snap.empty) {
+          const data = snap.docs[0].data();
+          setShowGoalScorers(data.showGoalScorers !== false); // default true
+        }
+      },
+      err => console.warn("Settings error:", err)
+    );
+    return () => unsub();
+  }, []);
 
   // Load teams once
   useEffect(() => {
@@ -198,7 +214,7 @@ export default function Home() {
               </div>
 
               {/* ── Goal Timeline (inside Featured Match card) ── */}
-              {timeline.length > 0 && (
+              {showGoalScorers && timeline.length > 0 && (
                 <div className="mt-4 pt-4 border-t border-border">
                   {/* Column headers */}
                   <div className="flex items-center justify-between mb-3">
@@ -262,7 +278,7 @@ export default function Home() {
         )}
 
         {/* ── Goal Scorers Card (two-column, below Featured Match) ── */}
-        {featuredMatch && (
+        {showGoalScorers && featuredMatch && (
           <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
             <div className="flex items-center gap-2 px-5 py-3 border-b border-border">
               <span className="text-base">⚽</span>

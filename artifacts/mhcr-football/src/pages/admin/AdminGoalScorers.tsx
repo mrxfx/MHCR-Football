@@ -2,11 +2,11 @@ import { AdminLayout } from "@/components/layout/AdminLayout";
 import { useEffect, useState } from "react";
 import {
   getDocs, addDoc, updateDoc, deleteDoc, doc,
-  query, orderBy, onSnapshot, serverTimestamp,
+  query, orderBy, onSnapshot, serverTimestamp, setDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { collections, Match, Team, GoalScorer } from "@/lib/firestore";
-import { Plus, Pencil, Trash2, X, Flame } from "lucide-react";
+import { collections, Match, Team, GoalScorer, Settings } from "@/lib/firestore";
+import { Plus, Pencil, Trash2, X, Flame, Eye, EyeOff } from "lucide-react";
 
 type FormData = {
   matchId: string;
@@ -28,6 +28,9 @@ export default function AdminGoalScorers() {
   const [form, setForm] = useState<FormData>(empty);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState("");
+  const [showGoalScorers, setShowGoalScorers] = useState(true);
+  const [settingsId, setSettingsId] = useState<string | null>(null);
+  const [toggling, setToggling] = useState(false);
 
   // Derive eligible teams for the selected match
   const selectedMatch = matches.find(m => m.id === form.matchId);
@@ -41,6 +44,7 @@ export default function AdminGoalScorers() {
   const isLive = (m: Match) => (m as any).live === true || m.status === "live";
 
   useEffect(() => {
+    // Load matches + teams
     Promise.all([
       getDocs(query(collections.matches, orderBy("date", "desc"))),
       getDocs(collections.teams),
@@ -49,6 +53,17 @@ export default function AdminGoalScorers() {
       setTeams(ts.docs.map(d => ({ id: d.id, ...d.data() } as Team)));
     }).catch(e => console.warn(e));
 
+    // Load current settings (show/hide toggle)
+    getDocs(collections.settings).then(snap => {
+      if (!snap.empty) {
+        const d = snap.docs[0];
+        const data = d.data() as Settings;
+        setSettingsId(d.id);
+        setShowGoalScorers(data.showGoalScorers !== false); // default true
+      }
+    }).catch(e => console.warn(e));
+
+    // Real-time scorers list
     const unsub = onSnapshot(
       query(collections.goalScorers, orderBy("createdAt", "desc")),
       snap => {
@@ -59,6 +74,24 @@ export default function AdminGoalScorers() {
     );
     return () => unsub();
   }, []);
+
+  const handleToggle = async () => {
+    const next = !showGoalScorers;
+    setToggling(true);
+    try {
+      if (settingsId) {
+        await updateDoc(doc(db, "settings", settingsId), { showGoalScorers: next });
+      } else {
+        const ref = await addDoc(collections.settings, {
+          appName: "MHCR Football™", logoUrl: "", themeColor: "#2563EB", showGoalScorers: next,
+        });
+        setSettingsId(ref.id);
+      }
+      setShowGoalScorers(next);
+      showToast(next ? "Goal Scorers section is now VISIBLE on the site" : "Goal Scorers section is now HIDDEN from the site");
+    } catch (e: any) { showToast("Error: " + e.message); }
+    finally { setToggling(false); }
+  };
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(""), 3000); };
 
@@ -108,7 +141,7 @@ export default function AdminGoalScorers() {
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Live Goal Scorers</h1>
@@ -123,6 +156,46 @@ export default function AdminGoalScorers() {
           className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors shadow-md"
         >
           <Plus size={16} /> Add Goal Scorer
+        </button>
+      </div>
+
+      {/* ── Visibility Toggle ── */}
+      <div className={`flex items-center justify-between px-5 py-4 rounded-2xl mb-6 border-2 transition-all ${
+        showGoalScorers
+          ? "bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-800"
+          : "bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700"
+      }`}>
+        <div className="flex items-center gap-3">
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+            showGoalScorers ? "bg-green-100 dark:bg-green-900/30" : "bg-gray-200 dark:bg-gray-700"
+          }`}>
+            {showGoalScorers
+              ? <Eye size={18} className="text-green-600 dark:text-green-400" />
+              : <EyeOff size={18} className="text-gray-400" />
+            }
+          </div>
+          <div>
+            <p className={`font-semibold text-sm ${showGoalScorers ? "text-green-800 dark:text-green-200" : "text-gray-600 dark:text-gray-300"}`}>
+              Goal Scorers Section — <span className="font-black">{showGoalScorers ? "VISIBLE" : "HIDDEN"}</span> on home page
+            </p>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {showGoalScorers
+                ? "Visitors can see the Goal Scorers card on the home page"
+                : "Goal Scorers card is hidden from visitors — only admins can see this"}
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={handleToggle}
+          disabled={toggling}
+          className={`relative inline-flex h-7 w-13 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-60 ${
+            showGoalScorers ? "bg-green-500" : "bg-gray-300 dark:bg-gray-600"
+          }`}
+          style={{ width: "52px" }}
+        >
+          <span className={`inline-block h-6 w-6 transform rounded-full bg-white shadow-lg transition-transform duration-200 ease-in-out ${
+            showGoalScorers ? "translate-x-6" : "translate-x-0"
+          }`} />
         </button>
       </div>
 

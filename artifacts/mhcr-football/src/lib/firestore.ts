@@ -54,6 +54,7 @@ export interface Settings {
   appName: string;
   logoUrl: string;
   themeColor: string;
+  showGoalScorers?: boolean;
 }
 
 export interface GoalScorer {
