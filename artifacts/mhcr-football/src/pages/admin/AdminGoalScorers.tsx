@@ -73,12 +73,12 @@ export default function AdminGoalScorers() {
     e.preventDefault();
     setSaving(true);
     try {
-      const payload = { ...form, goals: Number(form.goals), createdAt: serverTimestamp() };
       if (editing?.id) {
-        await updateDoc(doc(db, "goalScorers", editing.id), payload);
+        const updatePayload = { ...form, goals: Number(form.goals) };
+        await updateDoc(doc(db, "goalScorers", editing.id), updatePayload);
         showToast("Goal scorer updated!");
       } else {
-        await addDoc(collections.goalScorers, payload);
+        await addDoc(collections.goalScorers, { ...form, goals: Number(form.goals), createdAt: serverTimestamp() });
         showToast("Goal scorer added!");
       }
       setOpen(false);

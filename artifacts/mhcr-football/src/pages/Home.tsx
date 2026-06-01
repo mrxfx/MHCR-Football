@@ -1,7 +1,7 @@
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useEffect, useState } from "react";
 import { collections, Match, Team, News as NewsType, Standing, GoalScorer } from "@/lib/firestore";
-import { getDocs, query, orderBy, limit, onSnapshot } from "firebase/firestore";
+import { getDocs, query, orderBy, where, limit, onSnapshot } from "firebase/firestore";
 import { Link } from "wouter";
 import { ArrowRight, Trophy, Newspaper, Tv2 } from "lucide-react";
 
@@ -53,7 +53,7 @@ export default function Home() {
   const [topTeams, setTopTeams] = useState<Standing[]>([]);
   const [news, setNews] = useState<NewsType[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
-  const [allScorers, setAllScorers] = useState<GoalScorer[]>([]);
+  const [featuredScorers, setFeaturedScorers] = useState<GoalScorer[]>([]);
   const [loadingScores, setLoadingScores] = useState(true);
   const [loadingTeams, setLoadingTeams] = useState(true);
   const [loadingNews, setLoadingNews] = useState(true);
@@ -92,15 +92,17 @@ export default function Home() {
     return () => unsub();
   }, []);
 
-  // Real-time goal scorers (all)
+  // Real-time goal scorers — re-subscribes whenever the featured match changes
   useEffect(() => {
+    if (!featuredMatch?.id) return;
+    const q = query(collections.goalScorers, where("matchId", "==", featuredMatch.id));
     const unsub = onSnapshot(
-      collections.goalScorers,
-      snap => setAllScorers(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as GoalScorer))),
+      q,
+      snap => setFeaturedScorers(snap.docs.map(d => ({ id: d.id, ...d.data() } as GoalScorer))),
       err => console.warn("GoalScorers error:", err)
     );
     return () => unsub();
-  }, []);
+  }, [featuredMatch?.id]);
 
   // Top teams (standings)
   useEffect(() => {
@@ -130,17 +132,16 @@ export default function Home() {
     return <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">Finished</span>;
   };
 
-  // Scorers for the featured match
-  const featuredScorers = featuredMatch
-    ? allScorers.filter(s => s.matchId === featuredMatch.id)
-    : [];
+  // Timeline + per-team columns (all derived from featuredScorers)
   const timeline = featuredMatch
     ? buildTimeline(featuredScorers, featuredMatch.homeTeam, featuredMatch.awayTeam)
     : [];
-
-  // For the separate Goal Scorers card (by team column)
-  const homeColScorers = featuredMatch ? featuredScorers.filter(s => s.teamId === featuredMatch.homeTeam).sort((a, b) => b.goals - a.goals) : [];
-  const awayColScorers = featuredMatch ? featuredScorers.filter(s => s.teamId === featuredMatch.awayTeam).sort((a, b) => b.goals - a.goals) : [];
+  const homeColScorers = featuredMatch
+    ? featuredScorers.filter(s => s.teamId === featuredMatch.homeTeam).sort((a, b) => b.goals - a.goals)
+    : [];
+  const awayColScorers = featuredMatch
+    ? featuredScorers.filter(s => s.teamId === featuredMatch.awayTeam).sort((a, b) => b.goals - a.goals)
+    : [];
   const hasAnyScorers = featuredScorers.length > 0;
 
   return (
